@@ -1,4 +1,4 @@
-FROM node:14.17.4-alpine as nodejs-builder
+FROM node:14.17.6-alpine as nodejs-builder
 RUN mkdir -p /src/ui
 COPY ui/package.json ui/package-lock.json /src/ui/
 RUN cd /src/ui && npm ci && touch node_modules/.install
@@ -6,8 +6,8 @@ RUN apk add make git
 COPY ui /src/ui
 RUN make -C /src/ui build
 
-FROM golang:1.16.7-alpine as go-builder
-RUN apk add make git
+FROM golang:1.17.0-alpine as go-builder
+RUN apk add make git tzdata ca-certificates
 COPY Makefile /src/Makefile
 COPY make /src/make
 COPY go.mod /src/go.mod
@@ -26,5 +26,14 @@ ARG VERSION
 LABEL org.opencontainers.image.source https://github.com/prymitive/karma
 LABEL org.opencontainers.image.version ${VERSION}
 COPY --from=go-builder /src/karma /karma
+# Copy zoneinfo
+#
+COPY --from=go-builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=go-builder /etc/localtime /etc/localtime
+COPY --from=go-builder /etc/timezone /etc/timezone
+
+# Copy the ca-certificate.crt from the build stage
+#
+COPY --from=go-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 EXPOSE 8080
 ENTRYPOINT ["/karma"]
